@@ -87,6 +87,7 @@ unsafe extern "C" fn removevar(state: *mut LuaState) -> c_int {
 
 pub struct Lovely {
     pub mod_dir: PathBuf,
+    pub debug_dir: PathBuf,
     pub is_vanilla: bool,
     loadbuffer: &'static LoadBuffer,
     patch_table: Arc<RwLock<PatchTable>>,
@@ -146,7 +147,13 @@ impl Lovely {
             }
         }
 
-        let log_dir = mod_dir.join("lovely").join("log");
+        let debug_dir = if let Some(env_path) = env::var_os("LOVELY_DEBUG_DIR") {
+            PathBuf::from(env_path)
+        } else {
+            mod_dir.join("lovely")
+        };
+
+        let log_dir = debug_dir.join("log");
 
         log::init(&log_dir).unwrap_or_else(|e| panic!("Failed to initialize logger: {e:?}"));
 
@@ -160,6 +167,7 @@ impl Lovely {
 
             let lovely = Lovely {
                 mod_dir,
+                debug_dir,
                 is_vanilla,
                 loadbuffer,
                 patch_table: Default::default(),
@@ -201,7 +209,7 @@ impl Lovely {
 
         // Clean up dump dirs
         for dir_name in ["dump", "game-dump"] {
-            let dump_dir = mod_dir.join("lovely").join(dir_name);
+            let dump_dir = debug_dir.join(dir_name);
             if !dump_dir.is_dir() {
                 continue;
             }
@@ -219,6 +227,7 @@ impl Lovely {
 
         let lovely = Lovely {
             mod_dir,
+            debug_dir,
             is_vanilla,
             loadbuffer,
             patch_table,
@@ -318,8 +327,8 @@ impl Lovely {
         }
         let (patched, debug) = res.unwrap();
 
-        write_dump(&self.mod_dir, "game-dump", &pretty_name, &patched, &PatchDebug::new(name));
-        write_dump(&self.mod_dir, "dump", &pretty_name, &patched, &debug);
+        write_dump(&self.debug_dir, "game-dump", &pretty_name, &patched, &PatchDebug::new(name));
+        write_dump(&self.debug_dir, "dump", &pretty_name, &patched, &debug);
 
         (self.loadbuffer)(state, patched.as_ptr(), patched.len(), name_ptr, mode_ptr)
     }
